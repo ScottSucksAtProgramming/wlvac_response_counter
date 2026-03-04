@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Node / frontend
+desktop/node_modules/
+desktop/dist/
+
+# Tauri / Rust build outputs
+desktop/src-tauri/target/
+
+# Parser build outputs
+parser/build/
+parser/dist/
+parser/*.spec
+parser/binaries/
+
+# Local generated reports
+WLVACResponseCounts-*.txt
+parser_summary*.json
+parser_summary*.txt
+dispatch_summary*.txt
