@@ -3,7 +3,7 @@
 ## Target outputs
 
 - macOS installer: `.dmg` or signed `.app` zip
-- Windows installer: `.msi` (or `.exe` bundle target)
+- Windows installer: `.msi` and `.exe` (NSIS)
 
 ## Prerequisites
 
@@ -11,8 +11,23 @@
 2. Ensure sidecar files exist:
    - `parser/binaries/parse_dispatch_report-macos`
    - `parser/binaries/parse_dispatch_report-windows.exe`
+3. Windows packaging machine requirements:
+   - Node.js LTS
+   - Rustup + stable toolchain
+   - Visual Studio 2022 Build Tools with Desktop C++ workload
+   - Microsoft Edge WebView2 Runtime
 
 The desktop app bundles `parser/binaries/**` as resources via `desktop/src-tauri/tauri.conf.json`.
+
+## Clean machine bootstrap (Windows)
+
+```powershell
+winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
+winget install Rustlang.Rustup --accept-source-agreements --accept-package-agreements
+rustup default stable
+winget install Microsoft.VisualStudio.2022.BuildTools --exact --accept-source-agreements --accept-package-agreements --override "--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+winget install Microsoft.EdgeWebView2Runtime --accept-source-agreements --accept-package-agreements
+```
 
 ## Local build commands
 
@@ -27,10 +42,19 @@ npm run tauri:build
 ### Windows
 
 ```powershell
-cd desktop
-npm install
-npm run tauri:build
+.\build_windows_exe.ps1
 ```
+
+This script builds the parser sidecar, loads the Visual Studio developer environment, and runs `npm run tauri:build` with the required MSVC linker available.
+
+## Troubleshooting
+
+- `failed to run 'cargo metadata' ... program not found`
+  - Cargo is not on `PATH`.
+- `linker 'link.exe' not found`
+  - Missing Desktop C++ workload or build not running under `VsDevCmd`.
+- `failed to bundle project` while verifying WiX/NSIS
+  - First bundle run downloads tooling and requires outbound network access.
 
 ## Signing / notarization notes
 

@@ -50,6 +50,25 @@ Built installers:
 - `desktop\src-tauri\target\release\bundle\msi\...`
 - `desktop\src-tauri\target\release\bundle\nsis\...`
 
+### Windows prerequisites
+
+Install these first on a fresh machine:
+
+- Node.js LTS
+- Rustup + stable MSVC toolchain
+- Visual Studio 2022 Build Tools with Desktop C++ workload
+- Microsoft Edge WebView2 Runtime
+
+Example setup commands:
+
+```powershell
+winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
+winget install Rustlang.Rustup --accept-source-agreements --accept-package-agreements
+rustup default stable
+winget install Microsoft.VisualStudio.2022.BuildTools --exact --accept-source-agreements --accept-package-agreements --override "--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+winget install Microsoft.EdgeWebView2Runtime --accept-source-agreements --accept-package-agreements
+```
+
 ## Detailed docs
 
 - [User Guide](./docs/USER_GUIDE.md)
