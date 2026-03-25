@@ -19,6 +19,10 @@ parser/dist/
 parser/*.spec
 parser/binaries/
 
+# Sensitive report data (real dispatch/ESO exports)
+IAR_report*.xls
+Responses*.csv
+
 # Local generated reports
 WLVACResponseCounts-*.txt
 parser_summary*.json
