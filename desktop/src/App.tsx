@@ -45,6 +45,7 @@ function App() {
   const [status, setStatus] = useState("Ready. Select files, then click Generate Summary.");
   const [error, setError] = useState("");
   const [result, setResult] = useState<RunSummaryResponse | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -114,6 +115,19 @@ function App() {
       const msg = typeof err === "string" ? err : "Failed to open output file.";
       setError(msg);
       setStatus("Could not open output file.");
+    }
+  }
+
+  async function copyOutput() {
+    if (!result?.outputPath) return;
+    setError("");
+    try {
+      await invoke("copy_output_to_clipboard", { path: result.outputPath });
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      const msg = typeof err === "string" ? err : "Failed to copy to clipboard.";
+      setError(msg);
     }
   }
 
@@ -257,7 +271,14 @@ function App() {
           </article>
         </div>
 
-        {result?.outputPath && <p className="path">Saved: {result.outputPath}</p>}
+        {result?.outputPath && (
+          <div className="results-footer">
+            <p className="path">Saved: {result.outputPath}</p>
+            <button className="copy-btn" onClick={copyOutput} type="button">
+              {copied ? "Copied!" : "Copy Output"}
+            </button>
+          </div>
+        )}
       </section>
     </main>
   );

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, statSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,8 +24,15 @@ if (!targetName) {
 
 const targetBinary = path.join(binariesDir, targetName);
 if (existsSync(targetBinary)) {
-  console.log(`Parser sidecar already exists: ${targetBinary}`);
-  process.exit(0);
+  const sourceMtime = statSync(parserSource).mtimeMs;
+  const binaryMtime = statSync(targetBinary).mtimeMs;
+  if (sourceMtime > binaryMtime) {
+    console.log(`Parser source is newer than sidecar — rebuilding...`);
+    unlinkSync(targetBinary);
+  } else {
+    console.log(`Parser sidecar is up to date: ${targetBinary}`);
+    process.exit(0);
+  }
 }
 
 if (!existsSync(parserSource)) {

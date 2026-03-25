@@ -183,6 +183,27 @@ button:disabled {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.results-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  gap: 12px;
+}
+
+.results-footer .path {
+  margin: 0;
+  min-width: 0;
+}
+
+.copy-btn {
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 16px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .path {
   margin: 14px 0 0;
   color: var(--ink-700);

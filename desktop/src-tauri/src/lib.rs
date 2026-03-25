@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::AppHandle;
 use tauri::Manager;
+use tauri_plugin_clipboard_manager::ClipboardExt;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -206,6 +207,19 @@ fn open_path(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn copy_output_to_clipboard(app: AppHandle, path: String) -> Result<String, String> {
+  let p = Path::new(&path);
+  if !p.exists() {
+    return Err(format!("Output file not found: {}", p.display()));
+  }
+  let content = fs::read_to_string(p)
+    .map_err(|e| format!("Failed to read output file: {e}"))?;
+  app.clipboard().write_text(&content)
+    .map_err(|e| format!("Failed to copy to clipboard: {e}"))?;
+  Ok(content.lines().count().to_string())
+}
+
+#[tauri::command]
 fn run_summary(app: AppHandle, req: RunSummaryRequest) -> Result<RunSummaryResponse, String> {
   let dispatch_path = PathBuf::from(req.dispatch_path.trim());
   let eso_path = PathBuf::from(req.eso_path.trim());
@@ -283,13 +297,15 @@ pub fn run() {
       Ok(())
     })
     .plugin(tauri_plugin_opener::init())
+    .plugin(tauri_plugin_clipboard_manager::init())
     .invoke_handler(tauri::generate_handler![
       pick_dispatch_file,
       pick_eso_file,
       pick_output_dir,
       default_output_dir,
       open_path,
-      run_summary
+      run_summary,
+      copy_output_to_clipboard
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
