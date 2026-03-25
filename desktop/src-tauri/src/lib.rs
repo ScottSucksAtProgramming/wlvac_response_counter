@@ -24,6 +24,11 @@ struct SummaryCounts {
   calls_we_went_to: String,
   calls_missed: String,
   calls_likely_handled_by_outside_agency: String,
+  daytime_calls: String,
+  primary_calls: String,
+  missed_calls_daytime: String,
+  missed_calls_primary: String,
+  missed_calls_second_nines: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -101,6 +106,11 @@ fn parse_summary_counts(summary_text: &str) -> SummaryCounts {
     calls_we_went_to: "n/a".into(),
     calls_missed: "n/a".into(),
     calls_likely_handled_by_outside_agency: "n/a".into(),
+    daytime_calls: "n/a".into(),
+    primary_calls: "n/a".into(),
+    missed_calls_daytime: "n/a".into(),
+    missed_calls_primary: "n/a".into(),
+    missed_calls_second_nines: "n/a".into(),
   };
 
   for line in summary_text.lines() {
@@ -112,6 +122,16 @@ fn parse_summary_counts(summary_text: &str) -> SummaryCounts {
       counts.calls_missed = v.trim().to_string();
     } else if let Some(v) = line.strip_prefix("Calls likely handled by outside agency: ") {
       counts.calls_likely_handled_by_outside_agency = v.trim().to_string();
+    } else if let Some(v) = line.strip_prefix("Daytime calls (M-F 0700-1900): ") {
+      counts.daytime_calls = v.trim().to_string();
+    } else if let Some(v) = line.strip_prefix("Primary calls (nights/weekends): ") {
+      counts.primary_calls = v.trim().to_string();
+    } else if let Some(v) = line.strip_prefix("Missed calls during daytime: ") {
+      counts.missed_calls_daytime = v.trim().to_string();
+    } else if let Some(v) = line.strip_prefix("Missed calls during primary: ") {
+      counts.missed_calls_primary = v.trim().to_string();
+    } else if let Some(v) = line.strip_prefix("Missed calls that were 2nd 9s: ") {
+      counts.missed_calls_second_nines = v.trim().to_string();
     }
   }
   counts

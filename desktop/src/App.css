@@ -168,6 +168,21 @@ button:disabled {
   font-size: 24px;
 }
 
+.section-label {
+  margin: 16px 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-700);
+}
+
+.tiles-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tiles-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .path {
   margin: 14px 0 0;
   color: var(--ink-700);

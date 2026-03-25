@@ -8,6 +8,11 @@ type Counts = {
   callsWeWentTo: string;
   callsMissed: string;
   callsLikelyHandledByOutsideAgency: string;
+  daytimeCalls: string;
+  primaryCalls: string;
+  missedCallsDaytime: string;
+  missedCallsPrimary: string;
+  missedCallsSecondNines: string;
 };
 
 type RunSummaryResponse = {
@@ -223,6 +228,35 @@ function App() {
             <strong>{result?.counts.callsLikelyHandledByOutsideAgency ?? "-"}</strong>
           </article>
         </div>
+
+        <h3 className="section-label">Calls by Time</h3>
+        <div className="tiles tiles-2">
+          <article>
+            <span>Daytime (M-F 0700-1900)</span>
+            <strong>{result?.counts.daytimeCalls ?? "-"}</strong>
+          </article>
+          <article>
+            <span>Primary (Nights/Weekends)</span>
+            <strong>{result?.counts.primaryCalls ?? "-"}</strong>
+          </article>
+        </div>
+
+        <h3 className="section-label">Missed Calls by Time</h3>
+        <div className="tiles tiles-3">
+          <article>
+            <span>Missed Daytime</span>
+            <strong>{result?.counts.missedCallsDaytime ?? "-"}</strong>
+          </article>
+          <article>
+            <span>Missed Primary</span>
+            <strong>{result?.counts.missedCallsPrimary ?? "-"}</strong>
+          </article>
+          <article>
+            <span>2nd 9s</span>
+            <strong>{result?.counts.missedCallsSecondNines ?? "-"}</strong>
+          </article>
+        </div>
+
         {result?.outputPath && <p className="path">Saved: {result.outputPath}</p>}
       </section>
     </main>

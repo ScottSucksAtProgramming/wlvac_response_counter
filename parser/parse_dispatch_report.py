@@ -46,6 +46,20 @@ DEFAULT_ESO_MERGE_MINUTES = 180
 DEFAULT_WLVAC_UNITS = {"292", "293", "294"}
 
 
+def is_primary_hours(dt: datetime) -> bool:
+    """Check if a datetime falls within primary (second 9s) hours.
+
+    Primary hours: M-F 1900-0700, Sat+Sun all day.
+    Daytime hours: M-F 0700-1900.
+    """
+    weekday = dt.weekday()  # 0=Mon, 5=Sat, 6=Sun
+    if weekday >= 5:
+        return True
+    hour = dt.hour
+    # M-F: primary is before 0700 or at/after 1900
+    return hour < 7 or hour >= 19
+
+
 @dataclass
 class ReportRow:
     date: str
@@ -70,6 +84,7 @@ class EsoCall:
     event_dt: datetime | None
     row_index: int
     source_ids: list[str] = field(default_factory=list)
+    in_district_dt: datetime | None = None
 
 
 def normalize_whitespace(value: str) -> str:
@@ -130,6 +145,7 @@ def parse_any_datetime(value: str) -> datetime | None:
     formats = (
         "%m/%d/%Y %H:%M:%S",
         "%m/%d/%Y %H:%M",
+        "%Y-%m-%d %H:%M:%S.%f",
         "%Y-%m-%d %H:%M:%S",
         "%Y-%m-%d %H:%M",
         "%m/%d/%y %H:%M:%S",
@@ -196,6 +212,11 @@ def parse_eso_calls(eso_path: Path, merge_window_minutes: int = DEFAULT_ESO_MERG
             ],
         )
         event_dt = parse_any_datetime(dt_value)
+        in_district_value = _get_csv_value(
+            row,
+            ["In District", "In District Date/Time", "In District Date Time"],
+        )
+        in_district_dt = parse_any_datetime(in_district_value)
         raw_rows.append(
             {
                 "incident": incident,
@@ -203,6 +224,7 @@ def parse_eso_calls(eso_path: Path, merge_window_minutes: int = DEFAULT_ESO_MERG
                 "address_raw": address,
                 "address_key": address_key,
                 "event_dt": event_dt,
+                "in_district_dt": in_district_dt,
                 "row_index": idx,
             }
         )
@@ -234,10 +256,15 @@ def parse_eso_calls(eso_path: Path, merge_window_minutes: int = DEFAULT_ESO_MERG
         for cluster in clusters:
             units: list[str] = []
             source_ids: list[str] = []
+            latest_in_district: datetime | None = None
             for item in cluster:
                 _append_unique(units, item["unit"])
                 if item["incident"]:
                     _append_unique(source_ids, item["incident"])
+                idt = item.get("in_district_dt")
+                if idt is not None:
+                    if latest_in_district is None or idt > latest_in_district:
+                        latest_in_district = idt
             first = cluster[0]
             eso_id = source_ids[0] if source_ids else f"row-{first['row_index']}"
             calls.append(
@@ -249,6 +276,7 @@ def parse_eso_calls(eso_path: Path, merge_window_minutes: int = DEFAULT_ESO_MERG
                     event_dt=first["event_dt"],
                     row_index=first["row_index"],
                     source_ids=source_ids,
+                    in_district_dt=latest_in_district,
                 )
             )
 
@@ -259,10 +287,15 @@ def parse_eso_calls(eso_path: Path, merge_window_minutes: int = DEFAULT_ESO_MERG
         for key, group in by_incident_no_dt.items():
             units: list[str] = []
             source_ids: list[str] = []
+            latest_in_district: datetime | None = None
             for item in group:
                 _append_unique(units, item["unit"])
                 if item["incident"]:
                     _append_unique(source_ids, item["incident"])
+                idt = item.get("in_district_dt")
+                if idt is not None:
+                    if latest_in_district is None or idt > latest_in_district:
+                        latest_in_district = idt
             first = group[0]
             calls.append(
                 EsoCall(
@@ -273,6 +306,7 @@ def parse_eso_calls(eso_path: Path, merge_window_minutes: int = DEFAULT_ESO_MERG
                     event_dt=None,
                     row_index=first["row_index"],
                     source_ids=source_ids,
+                    in_district_dt=latest_in_district,
                 )
             )
 
@@ -437,6 +471,7 @@ def match_dispatch_to_eso_calls(
             call["responded"] = False
             call["likely_outside_agency"] = any(u not in wlvac_units for u in dispatch_units)
             call["matched_eso_id"] = None
+            call["in_district_dt"] = None
             continue
 
         dispatch_dt = call.get("first_received")
@@ -462,6 +497,7 @@ def match_dispatch_to_eso_calls(
         )
         call["matched_eso_id"] = chosen.eso_id
         call["matched_eso_source_ids"] = chosen.source_ids
+        call["in_district_dt"] = chosen.in_district_dt
 
 
 def sort_units(units: list[str]) -> list[str]:
@@ -545,6 +581,65 @@ def write_summary(
     missed_call_ids = [call["call_id"] for call in merged_calls if (not call["responded"]) and (not call.get("likely_outside_agency"))]
     missed_count = len(missed_call_ids)
 
+    # Daytime vs primary breakdown for all calls
+    daytime_total = 0
+    primary_total = 0
+    daytime_total_unknown = 0
+    for call in merged_calls:
+        dt = call.get("first_received")
+        if dt is None:
+            daytime_total_unknown += 1
+        elif is_primary_hours(dt):
+            primary_total += 1
+        else:
+            daytime_total += 1
+
+    # Daytime vs primary breakdown for missed calls
+    daytime_missed = 0
+    primary_missed = 0
+    daytime_missed_unknown = 0
+    for call in merged_calls:
+        if call["responded"] or call.get("likely_outside_agency"):
+            continue
+        dt = call.get("first_received")
+        if dt is None:
+            daytime_missed_unknown += 1
+        elif is_primary_hours(dt):
+            primary_missed += 1
+        else:
+            daytime_missed += 1
+
+    # 2nd 9s detection: missed calls that arrived during an active response
+    second_nines_count = 0
+    second_nines_ids: list[str] = []
+    max_call_duration = timedelta(hours=8)
+    if eso_calls is not None:
+        # Build busy windows from responded calls with valid timestamps.
+        # Cap window duration to filter out bad address-based cross-matches
+        # where in_district_dt comes from a different call at the same address.
+        busy_windows: list[tuple[datetime, datetime]] = []
+        for call in merged_calls:
+            if not call["responded"]:
+                continue
+            start = call.get("first_received")
+            end = call.get("in_district_dt")
+            if start is not None and end is not None and end > start:
+                if end - start <= max_call_duration:
+                    busy_windows.append((start, end))
+
+        # Check each missed call against busy windows
+        for call in merged_calls:
+            if call["responded"] or call.get("likely_outside_agency"):
+                continue
+            dispatch_dt = call.get("first_received")
+            if dispatch_dt is None:
+                continue
+            for window_start, window_end in busy_windows:
+                if window_start <= dispatch_dt <= window_end:
+                    second_nines_count += 1
+                    second_nines_ids.append(call["call_id"])
+                    break
+
     lines: list[str] = []
     lines.append(f"Dispatch Report Summary")
     lines.append(f"Source file: {input_path}")
@@ -559,6 +654,15 @@ def write_summary(
     lines.append(f"Calls we went to: {responded_count}")
     lines.append(f"Calls missed: {missed_count}")
     lines.append(f"Calls likely handled by outside agency: {outside_count}")
+    lines.append(f"Daytime calls (M-F 0700-1900): {daytime_total}")
+    lines.append(f"Primary calls (nights/weekends): {primary_total}")
+    if daytime_total_unknown:
+        lines.append(f"Calls with unknown time: {daytime_total_unknown}")
+    lines.append(f"Missed calls during daytime: {daytime_missed}")
+    lines.append(f"Missed calls during primary: {primary_missed}")
+    if daytime_missed_unknown:
+        lines.append(f"Missed calls with unknown time: {daytime_missed_unknown}")
+    lines.append(f"Missed calls that were 2nd 9s: {second_nines_count}")
     lines.append("Missed Call IDs:")
     if missed_call_ids:
         for call_id in missed_call_ids:
@@ -600,6 +704,12 @@ def write_summary(
         "calls_we_went_to": responded_count,
         "calls_missed": missed_count,
         "calls_likely_outside_agency": outside_count,
+        "daytime_calls": daytime_total,
+        "primary_calls": primary_total,
+        "missed_calls_daytime": daytime_missed,
+        "missed_calls_primary": primary_missed,
+        "missed_calls_second_nines": second_nines_count,
+        "second_nines_call_ids": second_nines_ids,
         "missed_call_ids": missed_call_ids,
         "outside_agency_call_ids": outside_call_ids,
     }
